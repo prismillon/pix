@@ -20,6 +20,16 @@ image from it, so the source of truth stays upstream and every rebuild is reprod
 To update: review the upstream diff, bump `UPSTREAM_SHA`, push. To move to our own fork later, point
 `UPSTREAM_REPOSITORY` at it — no other change needed.
 
+## Local patch
+
+`docker/Dockerfile` is upstream's Dockerfile plus exactly one change: upstream hardcodes a **15s** timeout on the
+scrape against its bundled snapsave service, but a successful scrape from this cluster measures 1.4s–11s typically
+with 17s/25s tails — above the cap the app gives up and returns 404 instead of an embed. The cap is raised to 60s.
+
+The build asserts the upstream line is still present *and* no longer present afterwards, so the patch can never
+apply silently as a no-op: if upstream changes that code the build fails and we re-read it. Drop
+`docker/Dockerfile` and the `file:` line in the workflow once upstream makes the timeout configurable.
+
 ## Image
 
 `ghcr.io/prismillon/pix:latest` (and a `:<upstream sha>` tag per build), published with the workflow's own

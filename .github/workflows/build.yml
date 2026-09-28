@@ -47,12 +47,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Our Dockerfile is upstream's plus one documented patch (the hardcoded
+      # scrape timeout); build-push-action resolves `file` relative to the
+      # context, so drop it into the context first.
+      - name: Install locally patched Dockerfile
+        run: cp docker/Dockerfile upstream/InstagramEmbedForDiscord/Dockerfile.local
+
       # The upstream Dockerfile lives in the app subdirectory - building from the
       # repo root would fail, its root Dockerfile is an empty placeholder.
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: upstream/InstagramEmbedForDiscord
+          file: Dockerfile.local
           platforms: linux/amd64
           push: true
           tags: |
