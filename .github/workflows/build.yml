@@ -1,0 +1,62 @@
+name: build
+
+# Builds the self-hosted Instagram embed fixer that serves https://px.prr.sh/.
+#
+# The source is NOT vendored here: it stays upstream (MIT, by Lainmode) and is
+# checked out at a pinned commit. Updating means reviewing the upstream diff and
+# bumping UPSTREAM_SHA - never a silent moving target.
+#
+# The image is published to GHCR with the workflow's own GITHUB_TOKEN, so this
+# repository needs no registry secrets.
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    # weekly rebuild so base-image and toolchain security fixes flow through
+    - cron: "23 4 * * 1"
+  workflow_dispatch: {}
+
+env:
+  UPSTREAM_REPOSITORY: Lainmode/InstagramEmbed-vxinstagram
+  # master as of 2026-04-30 - verified building for linux/amd64 (the cluster's arch)
+  UPSTREAM_SHA: fd2c572afbc944df65c309cca04a2e87fba50cfa
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out upstream source at the pinned commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.UPSTREAM_REPOSITORY }}
+          ref: ${{ env.UPSTREAM_SHA }}
+          path: upstream
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The upstream Dockerfile lives in the app subdirectory - building from the
+      # repo root would fail, its root Dockerfile is an empty placeholder.
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: upstream/InstagramEmbedForDiscord
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ env.UPSTREAM_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha
