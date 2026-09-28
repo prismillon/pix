@@ -22,13 +22,18 @@ To update: review the upstream diff, bump `UPSTREAM_SHA`, push. To move to our o
 
 ## Local patch
 
-`docker/Dockerfile` is upstream's Dockerfile plus exactly one change: upstream hardcodes a **15s** timeout on the
-scrape against its bundled snapsave service, but a successful scrape from this cluster measures 1.4s–11s typically
-with 17s/25s tails — above the cap the app gives up and returns 404 instead of an embed. The cap is raised to 60s.
+`docker/Dockerfile` is upstream's Dockerfile plus exactly one change: upstream caps the scrape it makes against its
+bundled snapsave service **twice** — a 15s `CancellationTokenSource` in `PostCacheService.cs` and a 20s timeout on
+the named `snapsave` `HttpClient` in `Program.cs`. Measured against snapsave.app from this cluster, a successful
+scrape takes 1.4s–11s when the upstream is healthy but 23s–41s when it is loaded, and either ceiling turns a
+working scrape into a 404 (no embed at all). Both are raised — 60s inner, 120s client.
 
-The build asserts the upstream line is still present *and* no longer present afterwards, so the patch can never
-apply silently as a no-op: if upstream changes that code the build fails and we re-read it. Drop
-`docker/Dockerfile` and the `file:` line in the workflow once upstream makes the timeout configurable.
+The build asserts each upstream line is present before the patch and absent after, so a patch can never apply
+silently as a no-op: if upstream changes that code the build fails and we re-read it. Drop `docker/Dockerfile` and
+the `file:` line in the workflow once upstream makes these configurable.
+
+Note: this fixes the *service*. Whether Discord's crawler waits long enough to render the embed is a separate
+question — its window is far shorter than a loaded snapsave response.
 
 ## Image
 

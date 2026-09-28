@@ -26,14 +26,27 @@ COPY InstagramEmbed.Application.csproj ./
 RUN dotnet restore InstagramEmbed.Application.csproj
 COPY . ./
 
-# patch: raise the hardcoded scrape timeout, and FAIL THE BUILD if the upstream
-# line ever moves - a silently unapplied patch would put us back to 404s.
+# patch: raise both scrape ceilings, and FAIL THE BUILD if either upstream line
+# moves - a silently unapplied patch would put us back to 404s.
+#
+#   1. PostCacheService's inner CancellationTokenSource cap (15s)
+#   2. the named "snapsave" HttpClient timeout in Program.cs (20s)
+#
+# Measured against snapsave.app from this cluster: successful scrapes run
+# 1.4s-11s when the upstream is healthy and 23s-41s when it is loaded. Either
+# ceiling turns a working scrape into a 404. The inner token source is kept
+# below the HttpClient timeout so cancellation reads as a clean timeout.
 RUN set -eux; \
     f=Services/PostCacheService.cs; \
     grep -q 'TimeSpan.FromSeconds(15)' "$f"; \
     sed -i 's/TimeSpan\.FromSeconds(15)/TimeSpan.FromSeconds(60)/' "$f"; \
     grep -q 'TimeSpan.FromSeconds(60)' "$f"; \
-    ! grep -q 'TimeSpan.FromSeconds(15)' "$f"
+    ! grep -q 'TimeSpan\.FromSeconds(15)' "$f"; \
+    g=Program.cs; \
+    grep -q 'c.Timeout = TimeSpan.FromSeconds(20)' "$g"; \
+    sed -i 's/c\.Timeout = TimeSpan\.FromSeconds(20)/c.Timeout = TimeSpan.FromSeconds(120)/' "$g"; \
+    grep -q 'c.Timeout = TimeSpan.FromSeconds(120)' "$g"; \
+    ! grep -q 'c\.Timeout = TimeSpan\.FromSeconds(20)' "$g"
 
 RUN dotnet publish InstagramEmbed.Application.csproj \
     -c Release \
