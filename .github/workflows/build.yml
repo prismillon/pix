@@ -30,6 +30,10 @@ jobs:
       packages: write
 
     steps:
+      # This repository, for docker/Dockerfile (the locally patched build file).
+      - name: Check out this repository
+        uses: actions/checkout@v7
+
       - name: Check out upstream source at the pinned commit
         uses: actions/checkout@v7
         with:
