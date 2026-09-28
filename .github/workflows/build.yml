@@ -63,7 +63,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: upstream/InstagramEmbedForDiscord
-          file: Dockerfile.local
+          # `file` is resolved from the workspace root, NOT the context - so
+          # name the copied path in full even though it sits inside the context.
+          file: upstream/InstagramEmbedForDiscord/Dockerfile.local
           platforms: linux/amd64
           push: true
           tags: |
